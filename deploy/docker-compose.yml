@@ -1,0 +1,58 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: ./deploy/Dockerfile
+      target: prod
+    image: integration_kommunicate:${INTEGRATION_KOMMUNICATE_VERSION:-latest}
+    restart: always
+    env_file:
+    - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      INTEGRATION_KOMMUNICATE_HOST: 0.0.0.0
+      INTEGRATION_KOMMUNICATE_DB_HOST: integration_kommunicate-db
+      INTEGRATION_KOMMUNICATE_DB_PORT: 5432
+      INTEGRATION_KOMMUNICATE_DB_USER: integration_kommunicate
+      INTEGRATION_KOMMUNICATE_DB_PASS: integration_kommunicate
+      INTEGRATION_KOMMUNICATE_DB_BASE: integration_kommunicate
+
+  db:
+    image: postgres:13.8-bullseye
+    hostname: integration_kommunicate-db
+    environment:
+      POSTGRES_PASSWORD: "integration_kommunicate"
+      POSTGRES_USER: "integration_kommunicate"
+      POSTGRES_DB: "integration_kommunicate"
+    volumes:
+    - integration_kommunicate-db-data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: pg_isready -U integration_kommunicate
+      interval: 2s
+      timeout: 3s
+      retries: 40
+
+  migrator:
+    image: integration_kommunicate:${INTEGRATION_KOMMUNICATE_VERSION:-latest}
+    restart: "no"
+    command: alembic upgrade head
+    environment:
+      INTEGRATION_KOMMUNICATE_DB_HOST: integration_kommunicate-db
+      INTEGRATION_KOMMUNICATE_DB_PORT: 5432
+      INTEGRATION_KOMMUNICATE_DB_USER: integration_kommunicate
+      INTEGRATION_KOMMUNICATE_DB_PASS: integration_kommunicate
+      INTEGRATION_KOMMUNICATE_DB_BASE: integration_kommunicate
+    depends_on:
+      db:
+        condition: service_healthy
+
+
+
+volumes:
+  integration_kommunicate-db-data:
+    name: integration_kommunicate-db-data
